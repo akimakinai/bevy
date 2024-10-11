@@ -19,15 +19,13 @@ use bevy_math::{ops, UVec2};
 use bevy_render::{
     camera::ExtractedCamera,
     diagnostic::RecordDiagnostics,
-    extract_component::{
-        ComponentUniforms, DynamicUniformIndex, ExtractComponentPlugin, UniformComponentPlugin,
-    },
+    extract_component::{ComponentUniforms, DynamicUniformIndex, UniformComponentPlugin},
     render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, ViewNode, ViewNodeRunner},
     render_resource::*,
     renderer::{RenderContext, RenderDevice},
     texture::{CachedTexture, TextureCache},
     view::ViewTarget,
-    Render, RenderApp, RenderSet,
+    ExtractSchedule, Render, RenderApp, RenderSet,
 };
 use downsampling_pipeline::{
     prepare_downsampling_pipeline, BloomDownsamplingPipeline, BloomDownsamplingPipelineIds,
@@ -50,15 +48,13 @@ impl Plugin for BloomPlugin {
         app.register_type::<Bloom>();
         app.register_type::<BloomPrefilter>();
         app.register_type::<BloomCompositeMode>();
-        app.add_plugins((
-            ExtractComponentPlugin::<Bloom>::default(),
-            UniformComponentPlugin::<BloomUniforms>::default(),
-        ));
+        app.add_plugins(UniformComponentPlugin::<BloomUniforms>::default());
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
         render_app
+            .add_systems(ExtractSchedule, settings::extract_bloom)
             .init_resource::<SpecializedRenderPipelines<BloomDownsamplingPipeline>>()
             .init_resource::<SpecializedRenderPipelines<BloomUpsamplingPipeline>>()
             .add_systems(

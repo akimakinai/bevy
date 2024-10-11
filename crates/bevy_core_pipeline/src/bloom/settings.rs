@@ -1,8 +1,12 @@
 use super::downsampling_pipeline::BloomUniforms;
-use bevy_ecs::{prelude::Component, query::QueryItem, reflect::ReflectComponent};
+use bevy_ecs::{
+    prelude::Component,
+    reflect::ReflectComponent,
+    system::{Commands, Query},
+};
 use bevy_math::{AspectRatio, URect, UVec4, Vec4};
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
-use bevy_render::{extract_component::ExtractComponent, prelude::Camera};
+use bevy_render::{prelude::Camera, sync_world::RenderEntity, Extract};
 
 /// Applies a bloom effect to an HDR-enabled 2d or 3d camera.
 ///
@@ -212,13 +216,13 @@ pub enum BloomCompositeMode {
     Additive,
 }
 
-impl ExtractComponent for Bloom {
-    type QueryData = (&'static Self, &'static Camera);
+pub(super) fn extract_bloom(
+    mut commands: Commands,
+    query: Extract<Query<(&RenderEntity, &Bloom, &Camera)>>,
+) {
+    for (entity, bloom, camera) in query.iter() {
+        let id = entity.id();
 
-    type QueryFilter = ();
-    type Out = (Self, BloomUniforms);
-
-    fn extract_component((bloom, camera): QueryItem<'_, Self::QueryData>) -> Option<Self::Out> {
         match (
             camera.physical_viewport_rect(),
             camera.physical_viewport_size(),
@@ -249,9 +253,17 @@ impl ExtractComponent for Bloom {
                     uv_offset: bloom.uv_offset,
                 };
 
-                Some((bloom.clone(), uniform))
+                commands
+                    .get_entity(id)
+                    .expect("Bloom entity wasn't synced.")
+                    .insert((bloom.clone(), uniform));
             }
-            _ => None,
+            _ => {
+                commands
+                    .get_entity(id)
+                    .expect("Bloom entity wasn't synced.")
+                    .remove::<(Bloom, BloomUniforms)>();
+            }
         }
     }
 }
