@@ -94,7 +94,7 @@ pub struct PostProcessingPlugin;
 /// [Chromatic aberration]: https://en.wikipedia.org/wiki/Chromatic_aberration
 ///
 /// [Gjøl & Svendsen 2016]: https://github.com/playdeadgames/publications/blob/master/INSIDE/rendering_inside_gdc2016.pdf
-#[derive(Reflect, Component, Clone)]
+#[derive(Reflect, Component, Clone, ExtractComponent)]
 #[reflect(Component, Default)]
 pub struct ChromaticAberration {
     /// The lookup texture that determines the color gradient.
@@ -363,6 +363,10 @@ impl ViewNode for PostProcessingNode {
         (view_target, pipeline_id, chromatic_aberration, post_processing_uniform_buffer_offsets): QueryItem<'w, Self::ViewQuery>,
         world: &'w World,
     ) -> Result<(), NodeRunError> {
+        if chromatic_aberration.intensity == 0.0 {
+            return Ok(());
+        }
+
         let pipeline_cache = world.resource::<PipelineCache>();
         let post_processing_pipeline = world.resource::<PostProcessingPipeline>();
         let post_processing_uniform_buffers = world.resource::<PostProcessingUniformBuffers>();
@@ -433,9 +437,13 @@ pub fn prepare_post_processing_pipelines(
     pipeline_cache: Res<PipelineCache>,
     mut pipelines: ResMut<SpecializedRenderPipelines<PostProcessingPipeline>>,
     post_processing_pipeline: Res<PostProcessingPipeline>,
-    views: Query<(Entity, &ExtractedView), With<ChromaticAberration>>,
+    views: Query<(Entity, &ExtractedView, &ChromaticAberration)>,
 ) {
-    for (entity, view) in views.iter() {
+    for (entity, view, chromatic_aberration) in views.iter() {
+        if chromatic_aberration.intensity == 0.0 {
+            continue;
+        }
+
         let pipeline_id = pipelines.specialize(
             &pipeline_cache,
             &post_processing_pipeline,
@@ -467,6 +475,10 @@ pub fn prepare_post_processing_uniforms(
 
     // Gather up all the postprocessing settings.
     for (view_entity, chromatic_aberration) in views.iter_mut() {
+        if chromatic_aberration.intensity == 0.0 {
+            continue;
+        }
+
         let chromatic_aberration_uniform_buffer_offset =
             post_processing_uniform_buffers.push(&ChromaticAberrationUniform {
                 intensity: chromatic_aberration.intensity,
@@ -483,23 +495,4 @@ pub fn prepare_post_processing_uniforms(
 
     // Upload to the GPU.
     post_processing_uniform_buffers.write_buffer(&render_device, &render_queue);
-}
-
-impl ExtractComponent for ChromaticAberration {
-    type QueryData = Read<ChromaticAberration>;
-
-    type QueryFilter = With<Camera>;
-
-    type Out = ChromaticAberration;
-
-    fn extract_component(
-        chromatic_aberration: QueryItem<'_, Self::QueryData>,
-    ) -> Option<Self::Out> {
-        // Skip the postprocessing phase entirely if the intensity is zero.
-        if chromatic_aberration.intensity > 0.0 {
-            Some(chromatic_aberration.clone())
-        } else {
-            None
-        }
-    }
 }

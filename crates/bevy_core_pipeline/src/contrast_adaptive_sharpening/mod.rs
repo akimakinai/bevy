@@ -85,14 +85,15 @@ impl ExtractComponent for ContrastAdaptiveSharpening {
     type Out = (DenoiseCas, CasUniform);
 
     fn extract_component(item: QueryItem<Self::QueryData>) -> Option<Self::Out> {
-        if !item.enabled || item.sharpening_strength == 0.0 {
-            return None;
-        }
         Some((
             DenoiseCas(item.denoise),
             CasUniform {
-                // above 1.0 causes extreme artifacts and fireflies
-                sharpness: item.sharpening_strength.clamp(0.0, 1.0),
+                sharpness: if item.enabled {
+                    // above 1.0 causes extreme artifacts and fireflies
+                    item.sharpening_strength.clamp(0.0, 1.0)
+                } else {
+                    0.0
+                },
             },
         ))
     }
@@ -242,9 +243,13 @@ fn prepare_cas_pipelines(
     pipeline_cache: Res<PipelineCache>,
     mut pipelines: ResMut<SpecializedRenderPipelines<CasPipeline>>,
     sharpening_pipeline: Res<CasPipeline>,
-    views: Query<(Entity, &ExtractedView, &DenoiseCas), With<CasUniform>>,
+    views: Query<(Entity, &ExtractedView, &DenoiseCas, &CasUniform), With<CasUniform>>,
 ) {
-    for (entity, view, cas) in &views {
+    for (entity, view, cas, uniform) in &views {
+        if uniform.sharpness == 0.0 {
+            continue;
+        }
+
         let pipeline_id = pipelines.specialize(
             &pipeline_cache,
             &sharpening_pipeline,
