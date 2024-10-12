@@ -5,20 +5,20 @@ use crate::{
 };
 use bevy_app::prelude::*;
 use bevy_asset::{load_internal_asset, Handle};
-use bevy_ecs::{prelude::*, query::QueryItem};
+use bevy_ecs::prelude::*;
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render::{
-    extract_component::{ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin},
-    prelude::Camera,
+    extract_component::UniformComponentPlugin,
     render_graph::RenderGraphApp,
     render_resource::{
         binding_types::{sampler, texture_2d, uniform_buffer},
         *,
     },
     renderer::RenderDevice,
+    sync_world::RenderEntity,
     texture::BevyDefault,
     view::{ExtractedView, ViewTarget},
-    Render, RenderApp, RenderSet,
+    Extract, ExtractSchedule, Render, RenderApp, RenderSet,
 };
 
 mod node;
@@ -79,22 +79,25 @@ pub struct CasUniform {
     sharpness: f32,
 }
 
-impl ExtractComponent for ContrastAdaptiveSharpening {
-    type QueryData = &'static Self;
-    type QueryFilter = With<Camera>;
-    type Out = (DenoiseCas, CasUniform);
-
-    fn extract_component(item: QueryItem<Self::QueryData>) -> Option<Self::Out> {
+fn extract_cas(
+    mut commands: Commands,
+    query: Extract<Query<(&RenderEntity, &ContrastAdaptiveSharpening)>>,
+) {
+    for (entity, item) in query.iter() {
+        let mut entity = commands
+            .get_entity(entity.id())
+            .expect("ContrastAdaptiveSharpening entity wasn't synced.");
         if !item.enabled || item.sharpening_strength == 0.0 {
-            return None;
+            entity.insert((
+                DenoiseCas(item.denoise),
+                CasUniform {
+                    // above 1.0 causes extreme artifacts and fireflies
+                    sharpness: item.sharpening_strength.clamp(0.0, 1.0),
+                },
+            ));
+        } else {
+            entity.remove::<(DenoiseCas, CasUniform)>();
         }
-        Some((
-            DenoiseCas(item.denoise),
-            CasUniform {
-                // above 1.0 causes extreme artifacts and fireflies
-                sharpness: item.sharpening_strength.clamp(0.0, 1.0),
-            },
-        ))
     }
 }
 
@@ -114,15 +117,13 @@ impl Plugin for CasPlugin {
         );
 
         app.register_type::<ContrastAdaptiveSharpening>();
-        app.add_plugins((
-            ExtractComponentPlugin::<ContrastAdaptiveSharpening>::default(),
-            UniformComponentPlugin::<CasUniform>::default(),
-        ));
+        app.add_plugins((UniformComponentPlugin::<CasUniform>::default(),));
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
         render_app
+            .add_systems(ExtractSchedule, extract_cas)
             .init_resource::<SpecializedRenderPipelines<CasPipeline>>()
             .add_systems(Render, prepare_cas_pipelines.in_set(RenderSet::Prepare));
 

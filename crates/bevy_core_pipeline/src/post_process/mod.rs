@@ -17,7 +17,6 @@ use bevy_ecs::{
 use bevy_reflect::{std_traits::ReflectDefault, Reflect};
 use bevy_render::{
     camera::Camera,
-    extract_component::{ExtractComponent, ExtractComponentPlugin},
     render_asset::{RenderAssetUsages, RenderAssets},
     render_graph::{
         NodeRunError, RenderGraphApp as _, RenderGraphContext, ViewNode, ViewNodeRunner,
@@ -32,9 +31,10 @@ use bevy_render::{
         TextureDimension, TextureFormat, TextureSampleType,
     },
     renderer::{RenderContext, RenderDevice, RenderQueue},
+    sync_world::RenderEntity,
     texture::{BevyDefault, GpuImage, Image},
     view::{ExtractedView, ViewTarget},
-    Render, RenderApp, RenderSet,
+    Extract, ExtractSchedule, Render, RenderApp, RenderSet,
 };
 use bevy_utils::prelude::default;
 
@@ -216,13 +216,13 @@ impl Plugin for PostProcessingPlugin {
         );
 
         app.register_type::<ChromaticAberration>();
-        app.add_plugins(ExtractComponentPlugin::<ChromaticAberration>::default());
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
 
         render_app
+            .add_systems(ExtractSchedule, extract_chromatic_aberration)
             .init_resource::<SpecializedRenderPipelines<PostProcessingPipeline>>()
             .init_resource::<PostProcessingUniformBuffers>()
             .add_systems(
@@ -485,21 +485,18 @@ pub fn prepare_post_processing_uniforms(
     post_processing_uniform_buffers.write_buffer(&render_device, &render_queue);
 }
 
-impl ExtractComponent for ChromaticAberration {
-    type QueryData = Read<ChromaticAberration>;
-
-    type QueryFilter = With<Camera>;
-
-    type Out = ChromaticAberration;
-
-    fn extract_component(
-        chromatic_aberration: QueryItem<'_, Self::QueryData>,
-    ) -> Option<Self::Out> {
-        // Skip the postprocessing phase entirely if the intensity is zero.
+fn extract_chromatic_aberration(
+    mut commands: Commands,
+    chromatic_aberrations: Extract<Query<(&RenderEntity, &ChromaticAberration), With<Camera>>>,
+) {
+    for (entity, chromatic_aberration) in chromatic_aberrations.iter() {
+        let mut entity = commands
+            .get_entity(entity.id())
+            .expect("ChromaticAberration entity wasn't synced");
         if chromatic_aberration.intensity > 0.0 {
-            Some(chromatic_aberration.clone())
+            entity.insert(chromatic_aberration.clone());
         } else {
-            None
+            entity.remove::<ChromaticAberration>();
         }
     }
 }
