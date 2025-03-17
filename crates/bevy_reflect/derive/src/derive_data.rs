@@ -275,7 +275,11 @@ impl<'a> ReflectDerive<'a> {
         }
 
         #[cfg(feature = "documentation")]
-        let meta = meta.with_docs(doc);
+        let meta = if !doc.is_empty() {
+            meta.with_docs(doc)
+        } else {
+            meta
+        };
 
         if meta.attrs().is_opaque() {
             return Ok(Self::Opaque(meta));
@@ -514,25 +518,26 @@ impl<'a> StructField<'a> {
         };
 
         let ty = self.reflected_type();
-        let custom_attributes = self.attrs.custom_attributes.to_tokens(bevy_reflect_path);
 
-        #[cfg_attr(
-            not(feature = "documentation"),
-            expect(
-                unused_mut,
-                reason = "Needs to be mutable if `documentation` feature is enabled.",
-            )
-        )]
         let mut info = quote! {
-            #field_info::new::<#ty>(#name).with_custom_attributes(#custom_attributes)
+            #field_info::new::<#ty>(#name)
         };
+
+        if !self.attrs.custom_attributes.is_empty() {
+            let custom_attributes = self.attrs.custom_attributes.to_tokens(bevy_reflect_path);
+            info.extend(quote! {
+                .with_custom_attributes(#custom_attributes)
+            });
+        }
 
         #[cfg(feature = "documentation")]
         {
             let docs = &self.doc;
-            info.extend(quote! {
-                .with_docs(#docs)
-            });
+            if !docs.is_empty() {
+                info.extend(quote! {
+                    .with_docs(#docs)
+                });
+            }
         }
 
         info
@@ -653,18 +658,20 @@ impl<'a> ReflectStruct<'a> {
             .active_fields()
             .map(|field| field.to_info_tokens(bevy_reflect_path));
 
-        let custom_attributes = self
-            .meta
-            .attrs
-            .custom_attributes()
-            .to_tokens(bevy_reflect_path);
+        let custom_attributes = self.meta.attrs.custom_attributes();
 
         let mut info = quote! {
             #bevy_reflect_path::#info_struct::new::<Self>(&[
                 #(#field_infos),*
             ])
-            .with_custom_attributes(#custom_attributes)
         };
+
+        if !custom_attributes.is_empty() {
+            let custom_attributes = custom_attributes.to_tokens(bevy_reflect_path);
+            info.extend(quote! {
+                .with_custom_attributes(#custom_attributes)
+            });
+        }
 
         if let Some(generics) = generate_generics(self.meta()) {
             info.extend(quote! {
@@ -675,9 +682,11 @@ impl<'a> ReflectStruct<'a> {
         #[cfg(feature = "documentation")]
         {
             let docs = self.meta().doc();
-            info.extend(quote! {
-                .with_docs(#docs)
-            });
+            if !docs.is_empty() {
+                info.extend(quote! {
+                    .with_docs(#docs)
+                });
+            }
         }
 
         quote! {
@@ -884,18 +893,20 @@ impl<'a> ReflectEnum<'a> {
             .iter()
             .map(|variant| variant.to_info_tokens(bevy_reflect_path));
 
-        let custom_attributes = self
-            .meta
-            .attrs
-            .custom_attributes()
-            .to_tokens(bevy_reflect_path);
+        let custom_attributes = self.meta.attrs.custom_attributes();
 
         let mut info = quote! {
             #bevy_reflect_path::EnumInfo::new::<Self>(&[
                 #(#variants),*
             ])
-            .with_custom_attributes(#custom_attributes)
         };
+
+        if !custom_attributes.is_empty() {
+            let custom_attributes = custom_attributes.to_tokens(bevy_reflect_path);
+            info.extend(quote! {
+                .with_custom_attributes(#custom_attributes)
+            });
+        }
 
         if let Some(generics) = generate_generics(self.meta()) {
             info.extend(quote! {
@@ -906,9 +917,11 @@ impl<'a> ReflectEnum<'a> {
         #[cfg(feature = "documentation")]
         {
             let docs = self.meta().doc();
-            info.extend(quote! {
-                .with_docs(#docs)
-            });
+            if !docs.is_empty() {
+                info.extend(quote! {
+                    .with_docs(#docs)
+                });
+            }
         }
 
         quote! {
@@ -1005,26 +1018,25 @@ impl<'a> EnumVariant<'a> {
             }
         };
 
-        let custom_attributes = self.attrs.custom_attributes.to_tokens(bevy_reflect_path);
-
-        #[cfg_attr(
-            not(feature = "documentation"),
-            expect(
-                unused_mut,
-                reason = "Needs to be mutable if `documentation` feature is enabled.",
-            )
-        )]
         let mut info = quote! {
             #bevy_reflect_path::#info_struct::new(#args)
-                .with_custom_attributes(#custom_attributes)
         };
+
+        if !self.attrs.custom_attributes.is_empty() {
+            let custom_attributes = self.attrs.custom_attributes.to_tokens(bevy_reflect_path);
+            info.extend(quote! {
+                .with_custom_attributes(#custom_attributes)
+            });
+        }
 
         #[cfg(feature = "documentation")]
         {
             let docs = &self.doc;
-            info.extend(quote! {
-                .with_docs(#docs)
-            });
+            if !docs.is_empty() {
+                info.extend(quote! {
+                    .with_docs(#docs)
+                });
+            }
         }
 
         quote! {

@@ -65,6 +65,11 @@ impl Documentation {
     pub fn push(&mut self, doc: String) {
         self.docs.push(doc);
     }
+
+    /// Returns `true` if there are no docstrings.
+    pub fn is_empty(&self) -> bool {
+        self.docs.is_empty()
+    }
 }
 
 impl ToTokens for Documentation {

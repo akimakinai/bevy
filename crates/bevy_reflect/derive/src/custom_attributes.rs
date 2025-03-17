@@ -38,4 +38,9 @@ impl CustomAttributes {
         input.parse::<Token![@]>()?;
         self.push(input.parse()?)
     }
+
+    /// Returns `true` if there are no custom attributes.
+    pub fn is_empty(&self) -> bool {
+        self.attributes.is_empty()
+    }
 }
