@@ -963,7 +963,7 @@ use bevy_ecs::prelude::*;
 /// | `MyEnum::Variant`                          | Enum Component `MyEnum` with the `Variant` variant                                                             |
 /// | `template_value(component)`                | Insert the component value from a variable `component`                                                         |
 /// | `template_value(CompA::from_str("foo"))`   | Insert the component value by immediately calling the constructor                                              |
-/// | `template(|context| { ... })`              | Register a function/closure returning a Template (eg. Component). Its passed [`context`] allowing World access |
+/// | `template(\|context\| { ... })`            | Register a function/closure returning a Template (eg. Component). Its passed [`context`] allowing World access |
 /// | `~MyType`<br>`~MyType {name: var}`         | Type implementing [`Template`], the prefix is used to distinguish it from Components which use [`FromTemplate`]|
 /// | **Including Scenes**                       |                                                                                                                |
 /// | `scene()`<br>`scene(val)`                  | Include the result of a `impl `[`Scene`] function                                                              |
